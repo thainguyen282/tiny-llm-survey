@@ -1,0 +1,7 @@
+[console_scripts]
+tls-aggregate = tiny_llm_survey.cli:run_aggregate
+tls-baseline = tiny_llm_survey.cli:run_baseline
+tls-forgetting = tiny_llm_survey.cli:run_forgetting
+tls-latency = tiny_llm_survey.cli:run_latency
+tls-mmlu = tiny_llm_survey.cli:run_mmlu
+tls-train = tiny_llm_survey.cli:run_train
