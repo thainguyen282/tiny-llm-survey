@@ -36,7 +36,10 @@ tls-baseline = "tiny_llm_survey.cli:run_baseline"
 tls-latency = "tiny_llm_survey.cli:run_latency"
 tls-train = "tiny_llm_survey.cli:run_train"
 tls-forgetting = "tiny_llm_survey.cli:run_forgetting"
+tls-sequential = "tiny_llm_survey.cli:run_sequential"
+tls-forgetting-curves = "tiny_llm_survey.cli:run_forgetting_curves"
 tls-aggregate = "tiny_llm_survey.cli:run_aggregate"
+tls-visualize = "tiny_llm_survey.cli:run_visualize"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -28,11 +28,17 @@ from tiny_llm_survey.training.task_embedding import (
 
 
 class TaskEmbeddingDataset(TorchDataset):
-    def __init__(self, hf_dataset, tokenizer, max_length: int = 2048):
+    def __init__(
+        self,
+        hf_dataset,
+        tokenizer,
+        max_length: int = 2048,
+        task_to_id: dict[str, int] | None = None,
+    ):
         self.rows = hf_dataset
         self.tokenizer = tokenizer
         self.max_length = max_length
-        self.task_to_id = task_id_map()
+        self.task_to_id = task_to_id or task_id_map()
 
     def __len__(self) -> int:
         return len(self.rows)

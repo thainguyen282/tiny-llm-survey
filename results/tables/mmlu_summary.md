@@ -1,0 +1,9 @@
+**Table 1. MMLU 5-shot accuracy (%) on surveyed models.**
+
+| Model | Params (M) | Tier | MMLU | STEM | Humanities | Social Sci. | Other |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| mobilellm-r1-140m | 140 | super_tiny | 24.1 | 24.6 | 23.8 | 23.8 | 24.4 |
+| functiongemma-270m | 270 | super_tiny | 24.7 | 24.1 | 26.2 | 22.8 | 25.0 |
+| lfm2.5-350m | 354 | super_tiny | 40.9 | 34.9 | 37.7 | 47.8 | 45.0 |
+| rwkv6-0.4b | 400 | super_tiny | 25.7 | 27.4 | 25.2 | 24.7 | 25.9 |
+| qwen3-0.6b | 596 | super_tiny | 50.1 | 46.6 | 50.9 | 52.7 | 51.8 |

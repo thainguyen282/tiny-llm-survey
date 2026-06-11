@@ -55,6 +55,44 @@ def _extract_mmlu_subjects(raw_results: dict[str, Any]) -> dict[str, float]:
     return subjects
 
 
+def _build_hf_lm(
+    model_key: str,
+    suite_cfg: dict[str, Any],
+    *,
+    adapter_path: Path | str | None = None,
+    checkpoint_path: Path | str | None = None,
+):
+    """Load an lm-eval HFLM wrapper for base, merged, or LoRA checkpoints."""
+    import torch
+    from lm_eval.models.huggingface import HFLM
+
+    models = load_models(include_optional=True)
+    model_cfg = models[model_key]
+    dtype = _resolve_dtype(suite_cfg.get("dtype", "bfloat16"))
+    hf_id = model_cfg["hf_id"]
+    trust = model_cfg.get("trust_remote_code", False)
+    device = suite_cfg.get("device", "cuda" if torch.cuda.is_available() else "cpu")
+
+    if checkpoint_path is not None:
+        pretrained = str(checkpoint_path)
+        peft = None
+    elif adapter_path is not None:
+        pretrained = hf_id
+        peft = str(adapter_path)
+    else:
+        pretrained = hf_id
+        peft = None
+
+    return HFLM(
+        pretrained=pretrained,
+        peft=peft,
+        dtype=dtype,
+        trust_remote_code=trust,
+        batch_size=suite_cfg.get("batch_size", "auto"),
+        device=device,
+    )
+
+
 def run_eval_suite(
     model_key: str,
     suite_config_path: Path | str | None = None,
@@ -62,11 +100,12 @@ def run_eval_suite(
     output_dir: Path | str | None = None,
     limit: int | None = None,
     output_filename: str = "results.json",
+    adapter_path: Path | str | None = None,
+    checkpoint_path: Path | str | None = None,
+    save_results: bool = True,
 ) -> dict[str, Any]:
     """Run lm-eval for a benchmark suite defined in a YAML config or dict."""
-    import torch
     from lm_eval import evaluator
-    from lm_eval.models.huggingface import HFLM
 
     models = load_models(include_optional=True)
     if model_key not in models:
@@ -84,18 +123,18 @@ def run_eval_suite(
     )
 
     out = Path(output_dir or suite_cfg["output_dir"]) / model_key
-    out.mkdir(parents=True, exist_ok=True)
+    if save_results:
+        out.mkdir(parents=True, exist_ok=True)
 
-    dtype = _resolve_dtype(suite_cfg.get("dtype", "bfloat16"))
     hf_id = model_cfg["hf_id"]
 
-    print(f"[{suite_name}] Loading {hf_id} ({model_key}) ...")
-    lm = HFLM(
-        pretrained=hf_id,
-        dtype=dtype,
-        trust_remote_code=model_cfg.get("trust_remote_code", False),
-        batch_size=suite_cfg.get("batch_size", "auto"),
-        device=suite_cfg.get("device", "cuda" if torch.cuda.is_available() else "cpu"),
+    load_label = checkpoint_path or adapter_path or hf_id
+    print(f"[{suite_name}] Loading {load_label} ({model_key}) ...")
+    lm = _build_hf_lm(
+        model_key,
+        suite_cfg,
+        adapter_path=adapter_path,
+        checkpoint_path=checkpoint_path,
     )
 
     lm_eval_cfg = suite_cfg.get("lm_eval", {})
@@ -138,15 +177,66 @@ def run_eval_suite(
     if suite_name == "mmlu":
         payload["mmlu_subjects"] = _extract_mmlu_subjects(results["results"])
 
-    out_file = out / output_filename
-    with open(out_file, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2)
-
-    headline = scores.get("mmlu") or scores.get("avg_9_tasks") or next(iter(scores.values()), None)
-    print(f"[{suite_name}] Saved {out_file}")
-    if headline is not None:
-        print(f"[{suite_name}] headline score = {headline:.4f}")
+    if save_results:
+        out_file = out / output_filename
+        with open(out_file, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2)
+        headline = scores.get("mmlu") or scores.get("avg_9_tasks") or next(iter(scores.values()), None)
+        print(f"[{suite_name}] Saved {out_file}")
+        if headline is not None:
+            print(f"[{suite_name}] headline score = {headline:.4f}")
     return payload
+
+
+def run_tracked_task_eval(
+    model_key: str,
+    task_names: list[str],
+    *,
+    adapter_path: Path | str | None = None,
+    checkpoint_path: Path | str | None = None,
+    limit: int | None = 50,
+    eval_config_path: Path | str | None = None,
+) -> dict[str, float]:
+    """Evaluate a subset of benchmark tasks (used during sequential training)."""
+    from tiny_llm_survey.config import benchmark_by_name
+
+    suite_cfg = merge_configs(CONFIGS / "eval.yaml")
+    if eval_config_path:
+        suite_cfg.update(load_yaml(eval_config_path))
+
+    benches = benchmark_by_name()
+    scores: dict[str, float] = {}
+    for name in task_names:
+        if name == "mmlu":
+            payload = run_eval_suite(
+                model_key,
+                suite_config_path=CONFIGS / "mmlu.yaml",
+                limit=limit,
+                adapter_path=adapter_path,
+                checkpoint_path=checkpoint_path,
+                save_results=False,
+            )
+            scores.update(payload.get("scores", {}))
+            continue
+        if name not in benches:
+            print(f"[tracked_eval] Unknown task '{name}', skipping.")
+            continue
+        bench = benches[name]
+        mini_cfg = {
+            **suite_cfg,
+            "suite": f"tracked_{name}",
+            "benchmarks": [bench],
+        }
+        payload = run_eval_suite(
+            model_key,
+            suite_cfg=mini_cfg,
+            limit=limit,
+            adapter_path=adapter_path,
+            checkpoint_path=checkpoint_path,
+            save_results=False,
+        )
+        scores.update(payload.get("scores", {}))
+    return scores
 
 
 def run_all_eval_suite(

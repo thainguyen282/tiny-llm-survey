@@ -1,0 +1,18 @@
+# Sequential forgetting — minimal 3-benchmark run with task embeddings (SDFT-style).
+method: one_hot_task_emb
+task_embedding_dim: 64
+
+task_order:
+  - gsm8k
+  - openbookqa
+  - mbpp
+
+eval_tasks:
+  - gsm8k
+  - openbookqa
+  - mbpp
+
+steps_per_phase: 100
+eval_interval_steps: 50
+max_samples_per_task: 200
+output_dir: results/sequential

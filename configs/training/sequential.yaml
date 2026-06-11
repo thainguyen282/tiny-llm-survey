@@ -1,0 +1,25 @@
+# Sequential forgetting — minimal 3-benchmark run (matches SFT/SDFT figure style).
+# Train and eval only these 3 tasks to minimize GPU time and lm-eval cost.
+
+method: lora
+lora_r: 8
+lora_alpha: 16
+lora_dropout: 0.05
+target_modules: [q_proj, v_proj]
+
+# Phase 1 → Phase 2 → Phase 3 (must have training loaders in data.py)
+task_order:
+  - gsm8k
+  - openbookqa
+  - mbpp
+
+# Track only the 3 training tasks (no extra retention evals)
+eval_tasks:
+  - gsm8k
+  - openbookqa
+  - mbpp
+
+steps_per_phase: 100
+eval_interval_steps: 50
+max_samples_per_task: 200
+output_dir: results/sequential

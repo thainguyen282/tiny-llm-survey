@@ -69,7 +69,7 @@ def run_train() -> None:
         "--method-config",
         type=str,
         required=True,
-        help="e.g. configs/training/lora_m.yaml",
+        help="e.g. configs/training/lora_s.yaml",
     )
     parser.add_argument("--max-samples", type=int, default=2000)
     args = parser.parse_args()
@@ -108,6 +108,90 @@ def run_aggregate() -> None:
     generate_blog_assets(out)
 
 
+def run_visualize() -> None:
+    from tiny_llm_survey.aggregation.mmlu_table import generate_mmlu_research_tables
+
+    parser = argparse.ArgumentParser(description="Generate research tables and figures from results/")
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Output directory (default: results/tables/)",
+    )
+    args = parser.parse_args()
+
+    out = Path(args.output) if args.output else None
+    generate_mmlu_research_tables(out)
+
+
+def run_sequential() -> None:
+    from tiny_llm_survey.training.sequential import run_sequential_forgetting
+
+    parser = argparse.ArgumentParser(
+        description="Sequential task training with periodic eval (forgetting curves)"
+    )
+    parser.add_argument("--model", type=str, required=True)
+    parser.add_argument(
+        "--method-config",
+        type=str,
+        default="configs/training/sequential.yaml",
+        help="Sequential config (sequential.yaml=SFT/LoRA, sequential_task_emb.yaml=task embeddings)",
+    )
+    parser.add_argument(
+        "--eval-limit",
+        type=int,
+        default=30,
+        help="lm-eval sample limit per task during training (lower = faster)",
+    )
+    args = parser.parse_args()
+
+    cfg_path = Path(args.method_config)
+    if not cfg_path.is_absolute():
+        cfg_path = project_root() / cfg_path
+
+    run_sequential_forgetting(args.model, cfg_path, eval_limit=args.eval_limit)
+
+
+def run_forgetting_curves() -> None:
+    from tiny_llm_survey.aggregation.forgetting_curve import (
+        generate_forgetting_curve_assets,
+        plot_sequential_forgetting_comparison,
+        plot_sequential_forgetting_curve,
+    )
+
+    parser = argparse.ArgumentParser(description="Plot sequential forgetting curves from trajectory JSON")
+    parser.add_argument(
+        "--trajectory",
+        type=str,
+        default=None,
+        help="Path to trajectory.json (omit to scan results/sequential/)",
+    )
+    parser.add_argument(
+        "--compare",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Two or more trajectory paths for side-by-side comparison",
+    )
+    parser.add_argument("--output", type=str, default=None)
+    args = parser.parse_args()
+
+    out = Path(args.output) if args.output else None
+
+    if args.compare:
+        out_path = out or (project_root() / "blog_assets" / "forgetting_curves" / "fig_comparison.png")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        plot_sequential_forgetting_comparison(args.compare, out_path)
+    elif args.trajectory:
+        traj = Path(args.trajectory)
+        if not traj.is_absolute():
+            traj = project_root() / traj
+        out_path = out or (traj.parent / "forgetting_curve.png")
+        plot_sequential_forgetting_curve(traj, out_path)
+    else:
+        generate_forgetting_curve_assets(output_dir=out)
+
+
 def run_list_models() -> None:
     from tiny_llm_survey.config import load_models
 
@@ -122,8 +206,11 @@ def main() -> None:
         "baseline": run_baseline,
         "latency": run_latency,
         "train": run_train,
+        "sequential": run_sequential,
         "forgetting": run_forgetting,
+        "forgetting-curves": run_forgetting_curves,
         "aggregate": run_aggregate,
+        "visualize": run_visualize,
         "list-models": run_list_models,
     }
 
